@@ -2,35 +2,31 @@
 
 class OrderProcessor
 {
-    public function __construct(private BillerInterface $biller)
+    public function __construct(private BillerInterface $biller, private OrderRepository $orderRepository)
     {
     }
 
     public function process(Order $order)
     {
-        $recent = $this->getRecentOrderCount($order);
-
-        if ($recent > 0)
+        if ($this->getRecentOrderCount($order) > 0)
         {
             throw new Exception('Duplicate order likely.');
         }
 
         $this->biller->bill($order->account->id, $order->amount);
 
-        DB::table('orders')->insert(array(
+        $this->orderRepository->insertOrder([
             'account'    => $order->account->id,
-            'amount'     => $order->amount;
-            'created_at' => Carbon::now();
-        ));
+            'amount'     => $order->amount,
+            'created_at' => Carbon::now(),
+        ]);
     }
 
     protected function getRecentOrderCount(Order $order)
     {
-        $timestamp = Carbon::now()->subMinutes(5);
-
-        return DB::table('orders')
-            ->where('account', $order->account->id)
-            ->where('created_at', '>=', $timestamps)
-            ->count();
+        return $this->orderRepository->getRecentOrderCountAfterTargetTime(
+            accountId: $order->account->id,
+            time: Carbon::now()->subMinutes(5)
+        );
     }
 }
